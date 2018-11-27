@@ -17,12 +17,31 @@ public class PlayerController : MonoBehaviour
 	private float mAniRetainTime;
 	private Vector3 mLookAt;
 	private float mAttackLen = 7;
-	private float mHp = 400;
+	private float mHP = 400;
+	private float mMaxHP = 400f;
+
+	// 自动向目标走
+	private GameObject mFindTarget;
+
 	private bool mDeath = false;
+	private BloodProgress mHPProgressBar;
+
+
+	public GameObject FindTarget
+	{
+		get { return mFindTarget; }
+		set { mFindTarget = value; }
+	}
 
 	// Use this for initialization
 	void Start()
 	{
+		mHPProgressBar = BloodProgress.CreateBloodProgress(this.gameObject, new Vector3(0, 4, 0));
+		if (mHPProgressBar != null)
+		{
+			mHPProgressBar.SetValue(mHP / mMaxHP);
+			mHPProgressBar.SetText(mHP + "/" + mMaxHP);
+		}
 		mCharacter = gameObject.GetComponent<CharacterController>();
 		mAnimation = gameObject.GetComponent<Animation>();
 		mAnimation.Play("ZhanLi_TY");
@@ -38,41 +57,60 @@ public class PlayerController : MonoBehaviour
 		if (Input.GetKey(KeyCode.W))
 		{
 			mLookAt = Vector3.forward;
+			mFindTarget = null;
 			Run();
 		}
 		else if (Input.GetKey(KeyCode.S))
 		{
 			mLookAt = Vector3.back;
+			mFindTarget = null;
 			Run();
 		}
 		else if (Input.GetKey(KeyCode.A))
 		{
 			mLookAt = Vector3.left;
+			mFindTarget = null;
 			Run();
 		}
 		else if(Input.GetKey(KeyCode.D))
 		{
 			mLookAt = Vector3.right;
+			mFindTarget = null;
 			Run();
 		}
 		else if (Input.GetKey(KeyCode.Q))
 		{
 			Attack(AttackState.ATTACK_1);
+			mFindTarget = null;
 		}
 		else if (Input.GetKey(KeyCode.E))
 		{
 			Attack(AttackState.ATTACK_2);
+			mFindTarget = null;
 		}
 		else if (Input.GetKey(KeyCode.R))
 		{
 			Attack(AttackState.ATTACK_3);
+			mFindTarget = null;
 		}
 		else
 		{
-			if (mAniRetainTime <= 0)
+			if (mFindTarget != null)
 			{
-				mAnimation.Play("ZhanLi_TY");
-				mAniRetainTime = 0;
+				mLookAt = (mFindTarget.transform.position - transform.position).normalized;
+				Run();
+
+				float distance = (mFindTarget.transform.position - transform.position).magnitude;
+				if (distance < 6)
+					mFindTarget = null;
+			}
+			else
+			{
+				if (mAniRetainTime <= 0)
+				{
+					mAnimation.Play("ZhanLi_TY");
+					mAniRetainTime = 0;
+				}
 			}
 		}
 	}
@@ -82,11 +120,15 @@ public class PlayerController : MonoBehaviour
 	/// </summary>
 	void Run()
 	{
-		if (mAniRetainTime > 0)
+		if (mAniRetainTime > 0 )
 			return;
 
 		transform.rotation = Quaternion.LookRotation(mLookAt.normalized, Vector3.up);
-		mCharacter.SimpleMove(transform.forward * Time.deltaTime * mMoveSpeed);
+		Vector3 dir = transform.forward * Time.deltaTime * mMoveSpeed;
+		Vector3 target = transform.position + dir;
+		if (target.x > 2 && target.x < 298 && target.z > 2 && target.z < 298)
+			mCharacter.SimpleMove(dir);
+		
 		mAnimation.Play("BenPao_TY");
 		mAniRetainTime = 0f;
 	}
@@ -125,9 +167,9 @@ public class PlayerController : MonoBehaviour
 	/// <param name="hurt"></param>
 	void AttackMonster(float hurt)
 	{
-		for(int i = 0; i < GameManager.sMonsterLst.Count; i ++)
+		for(int i = 0; i < MonsterManager.sMonsterManager.MonsterLst.Count; i ++)
 		{
-			GameObject monster = GameManager.sMonsterLst[i];
+			GameObject monster = MonsterManager.sMonsterManager.MonsterLst[i];
 			DragonController ctr = monster.GetComponent<DragonController>();
 			if (ctr.IsDeath())
 				continue;
@@ -150,13 +192,20 @@ public class PlayerController : MonoBehaviour
 	/// <param name="hurt"></param>
 	public void GetHit(float hurt)
 	{
-		mHp -= hurt;
-		if (mHp <= 0)
+		mHP -= hurt;
+		if (mHPProgressBar != null)
 		{
+			mHPProgressBar.SetValue(mHP / mMaxHP);
+			mHPProgressBar.SetText(Mathf.Max(mHP, 0) + "/" + mMaxHP);
+		}
+
+		if (mHP <= 0)
+		{
+			BloodProgress.DestoryBloodProgress(mHPProgressBar);
 			mDeath = true;
 			mAnimation.Play("SiWang_JJ");
-			GameManager.DestoryPlayer(mAnimation["SiWang_JJ"].length);
-			GameManager.sPlayerPos = transform.position;
+			GameManager.sGameManager.DestoryPlayer(mAnimation["SiWang_JJ"].length);
+			GameManager.sGameManager.PlayerPosition = transform.position;
 		}
 	}
 
@@ -167,5 +216,18 @@ public class PlayerController : MonoBehaviour
 	public bool IsDeath()
 	{
 		return mDeath;
+	}
+
+	/// <summary>
+	/// 
+	/// </summary>
+	/// <param name="target"></param>
+	public void SetFindTarget(GameObject target)
+	{
+		mFindTarget = target;
+	}
+
+	void OnDestroy()
+	{
 	}
 }

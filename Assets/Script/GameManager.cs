@@ -4,48 +4,41 @@ using UnityEngine;
 
 public class GameManager : MonoBehaviour
 {
-	public static List<GameObject> sMonsterLst = new List<GameObject>();
-	public static GameObject sPlayer = null;
-	public static GameManager sGameManager;
-	public static Vector3 sPlayerPos = new Vector3(100, 1, 100);
+	public static GameManager sGameManager = null;
 
-
-	// 怪物位置的列表
-	private Vector3[] mMonsPos = {
-		new Vector3(100, 1, 80),
-		//new Vector3(80, 1, 80),
-		//new Vector3(80, 1, 100),
-	};
-
-	private GameObject mMonsterPrefab;
 	private GameObject mPlayerPrefab;
+	private Vector3 mPlayerPos;
+	private GameObject mPlayer = null;
+
+	public Vector3 PlayerPosition
+	{
+		get { return mPlayerPos; }
+		set { mPlayerPos = value; }
+	}
+
+	public GameObject Player
+	{
+		get { return mPlayer; }
+	}
+
+
+	private void Awake()
+	{
+		sGameManager = this;
+	}
 
 	// Use this for initialization
 	void Start ()
 	{
-		sGameManager = this;
-		mMonsterPrefab = (GameObject)Resources.Load("Prefabs/DragonBoss");
 		mPlayerPrefab = (GameObject)Resources.Load("Prefabs/Player");
-
-		if (mMonsterPrefab != null)
-			InitMonster();
+		mPlayerPos = new Vector3(100, 1, 100);
 
 		if (mPlayerPrefab != null)
-			CreatePlayer(2);
+			CreatePlayer(1);
 	}
 
 	void Update()
 	{
-
-	}
-
-	/// <summary>
-	/// 初始化所有的怪物
-	/// </summary>
-	void InitMonster()
-	{
-		for (int i = 0; i < mMonsPos.Length; i++)
-			CreateDragMonster(mMonsPos[i]);
 	}
 
 	/// <summary>
@@ -53,7 +46,7 @@ public class GameManager : MonoBehaviour
 	/// </summary>
 	void InitPlayer()
 	{
-		sPlayer = Instantiate(mPlayerPrefab, sPlayerPos, Quaternion.identity);
+		mPlayer = Instantiate(mPlayerPrefab, mPlayerPos, Quaternion.identity);
 	}
 
 	/// <summary>
@@ -69,40 +62,12 @@ public class GameManager : MonoBehaviour
 	}
 
 	/// <summary>
-	/// 创建一个怪物
-	/// </summary>
-	/// <param name="position"></param>
-	GameObject CreateDragMonster(Vector3 position)
-	{
-		GameObject monster = Instantiate(mMonsterPrefab, position, Quaternion.identity);
-		sMonsterLst.Add(monster);
-		return monster;
-	}
-
-	/// <summary>
-	/// 销毁一个怪物
-	/// </summary>
-	/// <param name="time"></param>
-	/// <param name="monster"></param>
-	public static void DestoryMonster(float time, GameObject monster)
-	{
-		if (monster == null || sMonsterLst.Count <= 0)
-			return;
-
-		if (sMonsterLst.Contains(monster))
-		{
-			sMonsterLst.Remove(monster);
-			Destroy(monster, time);
-		}
-	}
-
-	/// <summary>
 	/// 主角死亡
 	/// </summary>
 	/// <param name="time"></param>
-	public static void DestoryPlayer(float time)
+	public void DestoryPlayer(float time)
 	{
-		Destroy(sPlayer, time);
+		Destroy(mPlayer, time);
 		sGameManager.CreatePlayer(time + 2);
 	}
 }

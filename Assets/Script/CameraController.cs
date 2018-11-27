@@ -14,10 +14,10 @@ public class CameraController : MonoBehaviour {
 
 	private void LateUpdate()
 	{
-		if (GameManager.sPlayer == null)
+		if (GameManager.sGameManager == null || GameManager.sGameManager.Player == null)
 			return;
 
-		transform.position = GameManager.sPlayer.transform.position - mDirection;
+		transform.position = GameManager.sGameManager.Player.transform.position - mDirection;
 	}
 
 }

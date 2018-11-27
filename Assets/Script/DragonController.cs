@@ -4,7 +4,6 @@ using UnityEngine;
 
 public class DragonController : MonoBehaviour
 {
-
 	private enum MonsterState
 	{
 		STAND,		// 原地呼吸
@@ -16,8 +15,9 @@ public class DragonController : MonoBehaviour
 
 	private Animation mAnimation;
 	private CharacterController mCharacter;
-
 	private Vector3 mStartPosition;
+	private GameObject mFireParticle;
+	private ParticleSystem mParticleSys;
 
 	private float mWanderRadius; // 游走半径
 	private float mChaseRadius; // 追击半径
@@ -33,7 +33,17 @@ public class DragonController : MonoBehaviour
 	private float mMoveSpeed;
 
 	private float mHP = 200f;
+	private float mMaxHP = 200f;
+
 	private bool mDeath = false;
+	private PointController mPoint;
+	public PointController Point
+	{
+		get { return mPoint; }
+		set { mPoint = value; }
+	}
+
+	private BloodProgress mHPProgressBar;
 
 	// Use this for initialization
 	void Start ()
@@ -41,7 +51,12 @@ public class DragonController : MonoBehaviour
 		mAnimation = gameObject.GetComponent<Animation>();
 		mCharacter = gameObject.GetComponent<CharacterController>();
 		mStartPosition = transform.position;
-
+		mHPProgressBar = BloodProgress.CreateBloodProgress(this.gameObject, new Vector3(0, 5, 0));
+		if (mHPProgressBar != null)
+		{
+			mHPProgressBar.SetValue(mHP / mMaxHP);
+			mHPProgressBar.SetText(Mathf.Max(mHP, 0) + "/" + mMaxHP);
+		}
 		mWanderRadius = 15f;
 		mChaseRadius = 20f;
 		mAttackRadius = 7f;
@@ -50,6 +65,7 @@ public class DragonController : MonoBehaviour
 
 		mMoveSpeed = 300f;
 		mState = MonsterState.WALK;
+		NPCInfoController.CreateInfoItem("大龙怪物", "whiteper", mMaxHP, this.gameObject);
 	}
 	
 	// Update is called once per frame
@@ -79,12 +95,12 @@ public class DragonController : MonoBehaviour
 				break;
 
 			case MonsterState.CHASE:
-				if (GameManager.sPlayer == null)
+				if (GameManager.sGameManager == null || GameManager.sGameManager.Player == null)
 				{
 					mState = MonsterState.RETURN;
 					break;
 				}
-				transform.rotation = Quaternion.LookRotation(GameManager.sPlayer.transform.position - transform.position, Vector3.up);
+				transform.rotation = Quaternion.LookRotation(GameManager.sGameManager.Player.transform.position - transform.position, Vector3.up);
 				MoveForward();
 				mAnimation.Play("BenPao");
 				ChaseRadiusCheck();
@@ -98,12 +114,12 @@ public class DragonController : MonoBehaviour
 				break;
 
 			case MonsterState.ATTACK:
-				if (GameManager.sPlayer == null)
+				if (GameManager.sGameManager == null || GameManager.sGameManager.Player == null)
 				{
 					mState = MonsterState.RETURN;
 					break;
 				}
-				transform.rotation = Quaternion.LookRotation(GameManager.sPlayer.transform.position - transform.position, Vector3.up);
+				transform.rotation = Quaternion.LookRotation(GameManager.sGameManager.Player.transform.position - transform.position, Vector3.up);
 				Attack();
 				CheckAttack();
 				break;
@@ -117,6 +133,7 @@ public class DragonController : MonoBehaviour
 	{
 		mCharacter.SimpleMove(transform.forward * Time.deltaTime * mMoveSpeed);
 	}
+
 	/// <summary>
 	/// 随机设置一个状态
 	/// </summary>
@@ -141,10 +158,10 @@ public class DragonController : MonoBehaviour
 	/// <returns></returns>
 	bool CheckPlayer()
 	{
-		if (GameManager.sPlayer == null)
+		if (GameManager.sGameManager.Player == null)
 			return false;
 
-		return GameManager.sPlayer.GetComponent<PlayerController>().IsDeath() == false;
+		return GameManager.sGameManager.Player.GetComponent<PlayerController>().IsDeath() == false;
 	}
 	/// <summary>
 	/// 普通状态下的距离检测
@@ -154,7 +171,7 @@ public class DragonController : MonoBehaviour
 		if (CheckPlayer() == false)
 			return;
 
-		float diatanceToPlayer = Vector3.Distance(GameManager.sPlayer.transform.position, transform.position);
+		float diatanceToPlayer = Vector3.Distance(GameManager.sGameManager.Player.transform.position, transform.position);
 		if (diatanceToPlayer < mAttackRadius)
 			mState = MonsterState.ATTACK;
 		else if (diatanceToPlayer < mChaseRadius)
@@ -173,7 +190,7 @@ public class DragonController : MonoBehaviour
 		if (CheckPlayer() == false)
 			return;
 
-		float diatanceToPlayer = Vector3.Distance(GameManager.sPlayer.transform.position, transform.position);
+		float diatanceToPlayer = Vector3.Distance(GameManager.sGameManager.Player.transform.position, transform.position);
 		if (diatanceToPlayer < mAttackRadius)
 			mState = MonsterState.ATTACK;
 		else if (diatanceToPlayer < mChaseRadius)
@@ -195,7 +212,7 @@ public class DragonController : MonoBehaviour
 		if (CheckPlayer() == false)
 			return;
 
-		float diatanceToPlayer = Vector3.Distance(GameManager.sPlayer.transform.position, transform.position);
+		float diatanceToPlayer = Vector3.Distance(GameManager.sGameManager.Player.transform.position, transform.position);
 		if (diatanceToPlayer < mAttackRadius)
 			mState = MonsterState.ATTACK;
 		else if (diatanceToPlayer > mChaseRadius)
@@ -220,7 +237,7 @@ public class DragonController : MonoBehaviour
 		if (CheckPlayer() == false)
 			return;
 
-		float diatanceToPlayer = Vector3.Distance(GameManager.sPlayer.transform.position, transform.position);
+		float diatanceToPlayer = Vector3.Distance(GameManager.sGameManager.Player.transform.position, transform.position);
 		if (diatanceToPlayer > mAttackRadius)
 		{
 			float homeDiatance = Vector3.Distance(mStartPosition, transform.position);
@@ -242,6 +259,9 @@ public class DragonController : MonoBehaviour
 					mState = MonsterState.CHASE;
 				}
 			}
+
+			if (mParticleSys != null)
+				PatricleManager.sController.StopPatricle(mParticleSys);
 		}
 
 	}
@@ -260,10 +280,51 @@ public class DragonController : MonoBehaviour
 		mRetainTime -= Time.deltaTime;
 		if (mRetainTime > 0)
 			return;
-	
+
+		if (mParticleSys == null)
+		{
+			GameObject xiaba = FindChiledByName(transform.gameObject, "Bip001 xiaba");
+			if (xiaba != null)
+			{
+				mFireParticle = PatricleManager.sController.GetParticlePre("Particle/Prefab/Fire", xiaba.transform.position, Quaternion.identity);
+				mFireParticle.transform.parent = xiaba.transform;
+				mFireParticle.transform.Rotate(90, 0, 0);
+				mParticleSys = mFireParticle.GetComponent<ParticleSystem>();
+				PatricleManager.sController.StopPatricle(mParticleSys);
+			}
+		}
+
+		if (mParticleSys != null)
+			PatricleManager.sController.PlayePatricle(mParticleSys);
+
 		mAnimation.Play("PuTongGongJi_2");
 		mRetainTime = mAnimation["PuTongGongJi_2"].length + 0.5f;
-		GameManager.sPlayer.GetComponent<PlayerController>().GetHit(100);
+		GameManager.sGameManager.Player.GetComponent<PlayerController>().GetHit(20);
+	}
+
+	/// <summary>
+	/// 根据名字查找子组建
+	/// </summary>
+	/// <param name="parent"></param>
+	/// <param name="name"></param>
+	/// <returns></returns>
+	GameObject FindChiledByName(GameObject parent, string name)
+	{
+		if (parent.name == name)
+			return parent;
+
+		if (parent.transform.childCount <= 0)
+			return null;
+
+		GameObject obj = null;
+		for (int i = 0; i < parent.transform.childCount; i++)
+		{
+			GameObject go = parent.transform.GetChild(i).gameObject;
+			obj = FindChiledByName(go, name);
+			if (obj != null)
+				break;
+		}
+		return obj;
 	}
 
 	/// <summary>
@@ -273,11 +334,19 @@ public class DragonController : MonoBehaviour
 	public void GetHit(float hurt)
 	{
 		mHP -= hurt;
+		if (mHPProgressBar != null)
+		{
+			mHPProgressBar.SetValue(mHP / mMaxHP);
+			mHPProgressBar.SetText(Mathf.Max(mHP, 0) + "/" + mMaxHP);
+		}
+
 		if (mHP <= 0)
 		{
-			mDeath = true;
+			BloodProgress.DestoryBloodProgress(mHPProgressBar);
+			NPCUIList.sNPCUIList.DestoryChildByRef(this.gameObject);
+		   mDeath = true;
 			mAnimation.Play("SiWang");
-			GameManager.DestoryMonster(mAnimation["SiWang"].length, gameObject);
+			MonsterManager.sMonsterManager.DestoryMonster(mAnimation["SiWang"].length, gameObject);
 		}
 	}
 
@@ -290,4 +359,11 @@ public class DragonController : MonoBehaviour
 		return mDeath;
 	}
 
+	/// <summary>
+	/// 销毁
+	/// </summary>
+	void OnDestroy()
+	{
+		mPoint.HasMonster = false;
+	}
 }
